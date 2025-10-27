@@ -1,17 +1,17 @@
-from building import Building 
+from building import GridBuilding 
 import random
 import numpy as np
 from tools.k_visibility import count_crossings
 from tools.segment_presentation import present_segments
 
-def get_top_mesurements_with_inf(building: Building):
+def get_top_mesurements_with_inf(building: GridBuilding):
     top_mesurements = []
     for i in range(building.width * 2 - 1):
         ray = ((0.5 + 0.5 * i, -1), (0.5 + 0.5 * i, building.height + 1))
         top_mesurements.append(count_crossings(ray, building.segments))
     return top_mesurements
 
-def get_top_mesurements(building: Building):
+def get_top_mesurements(building: GridBuilding):
     top_mesurements = []
     for i in range(building.width):
         ray = ((0.5 + i, -1), (0.5 + i, building.height + 1))
@@ -28,7 +28,7 @@ def create_angled_rays(width, height):
         right_angle_rays.append(((i*dist_between_rays + dist_between_rays/2 - 1, 0), (i*dist_between_rays + dist_between_rays/2, height)))
     return right_angle_rays, left_angle_rays
     
-def get_angle_mesurements(right_angle_rays, left_angle_rays, building: Building):
+def get_angle_mesurements(right_angle_rays, left_angle_rays, building: GridBuilding):
     right_angle_rays_mesurements = []
     for ray in right_angle_rays:
         right_angle_rays_mesurements.append(count_crossings(ray, building.segments))
@@ -114,7 +114,7 @@ def add_frame(matrix, horizontal):
         new_matrix = np.vstack([row_true, matrix, row_true])
     return new_matrix
 
-def reconstract_building(building: Building, presen_results):
+def reconstract_building(building: GridBuilding, presen_results):
     # define the angles to mesure
     right_angle_rays, left_angle_rays = create_angled_rays(building.width, building.height)
     
@@ -126,7 +126,7 @@ def reconstract_building(building: Building, presen_results):
     horizontal_matrix, vertical_matrix = get_grid(top_mesurements, right_angle_ray_mesurements, left_angle_ray_mesurements, building.width, building.height)
     new_horizontal_lines = add_frame(horizontal_matrix, True)
     new_vertical_lines = add_frame(vertical_matrix, False)
-    reconstracted_building = Building(width=building.width, height=building.height, horizontal_lines=new_horizontal_lines, vertical_lines=new_vertical_lines)
+    reconstracted_building = GridBuilding(width=building.width, height=building.height, horizontal_lines=new_horizontal_lines, vertical_lines=new_vertical_lines)
     
     # present results
     if presen_results:
@@ -138,7 +138,7 @@ def reconstract_building(building: Building, presen_results):
 if __name__ == '__main__':
     for _ in range(3):
         # create a random building
-        building = Building(random.randint(4,7), random.randint(4,7))
+        building = GridBuilding(random.randint(4,7), random.randint(4,7))
         building.fill_grid_randomly(0.25)
         
         reconstracted_building = reconstract_building(building, True)

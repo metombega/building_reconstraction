@@ -1,16 +1,7 @@
-import sys
-from pathlib import Path
-
-# Ensure project root (parent of this file's parent) is on sys.path so sibling
-# packages like `tools` can be imported when this file is executed directly.
-project_root = Path(__file__).resolve().parents[1]
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
 import numpy as np
 import random
-from tools.segment_presentation import present_segments
 
-class Building():
+class GridBuilding():
     def __init__(self, width, height, horizontal_lines=None, vertical_lines=None):
         self.width = width
         self.height = height
@@ -80,13 +71,11 @@ class Building():
                 if random.random()<prob:
                     self.vertical_lines[i][j] = 1
         self.update_segments()
-    
-    def present_grid(self):
-        present_segments([self.segments])
+
 
 # def calculate_ray_points(column_start_x, column_end_x, column_height):
 if __name__ == '__main__':
-    grid = Building(5,3)
+    grid = GridBuilding(5,3)
     grid.fill_grid_randomly(0.5)
     print(grid.segments)
     grid.present_grid()

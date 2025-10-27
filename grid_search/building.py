@@ -1,8 +1,14 @@
-import math
+import sys
+from pathlib import Path
+
+# Ensure project root (parent of this file's parent) is on sys.path so sibling
+# packages like `tools` can be imported when this file is executed directly.
+project_root = Path(__file__).resolve().parents[1]
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 import numpy as np
 import random
-import tkinter as tk
-from segment_presentation import present_segments
+from tools.segment_presentation import present_segments
 
 class Building():
     def __init__(self, width, height, horizontal_lines=None, vertical_lines=None):

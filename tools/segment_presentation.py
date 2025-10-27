@@ -1,8 +1,5 @@
 import tkinter as tk
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import numpy as np
-from typing import List, Tuple, Optional, Union
+from typing import List, Tuple, Optional
 
 def present_segments(segment_lists: List[List[Tuple[Tuple[float, float], Tuple[float, float]]]], 
                            colors: Optional[List[str]] = None,

@@ -1,9 +1,8 @@
 from building import Building 
 import random
 import numpy as np
-from k_visibility import count_crossings
-from segment_presentation import present_segments
-
+from tools.k_visibility import count_crossings
+from tools.segment_presentation import present_segments
 
 def get_top_mesurements_with_inf(building: Building):
     top_mesurements = []

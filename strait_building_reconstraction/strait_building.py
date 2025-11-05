@@ -8,11 +8,12 @@ from tools.geometric import point_to_line_dist, lines_are_overlap
 from tools.segment_presentation import present_segments
 
 class StraitBuilding():
-    def __init__(self, width, height, min_wall_length=1, segments: list=[]):
+    def __init__(self, width, height, min_wall_length=1, segments: list = None):
         self.width = width
         self.height = height
         self.min_wall_length = min_wall_length
-        self.segments = segments
+        # Avoid using a mutable default argument. Create a fresh list per instance.
+        self.segments = list(segments) if segments is not None else []
         self.horizontal_segments = []
         self.vertical_segments = []
         self.frame_segments = []

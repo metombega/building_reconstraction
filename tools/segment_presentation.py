@@ -1,20 +1,31 @@
 import tkinter as tk
 from typing import List, Tuple, Optional
 
-def present_segments(segment_lists: List[List[Tuple[Tuple[float, float], Tuple[float, float]]]], 
-                           colors: Optional[List[str]] = None,
-                           title: str = "Segment Visualization",
-                           canvas_size: Tuple[int, int] = (800, 600),
-                           margin: int = 50,
-                           line_width: int = 2) -> None:
+def present_segments(
+    segment_lists: List[List[Tuple[Tuple[float, float], Tuple[float, float]]]],
+    colors: Optional[List[str]] = None,
+    points_lists: Optional[List[List[Tuple[float, float]]]] = None,
+    points_colors: Optional[List[str]] = None,
+    title: str = "Segment Visualization",
+    canvas_size: Tuple[int, int] = (800, 600),
+    margin: int = 50,
+    line_width: int = 2,
+    point_radius: int = 4,
+) -> None:
     """
     Present multiple lists of segments on screen using Tkinter, each list in a different color.
+    Optionally present one or more lists of points on the same display.
     
     Args:
-        segment_lists: List of lists, where each inner list contains segments.
-                      Each segment is ((x1, y1), (x2, y2))
-        colors: Optional list of colors for each segment list. If not provided, 
-               uses default colors. Can be color names or hex codes.
+    segment_lists: List of lists, where each inner list contains segments.
+               Each segment is ((x1, y1), (x2, y2))
+    colors: Optional list of colors for each segment list. If not provided,
+        uses default colors. Can be color names or hex codes.
+    points_lists: Optional list of lists of points to draw on the same canvas.
+              Each point is (x, y). Each inner list will be drawn with a
+              matching entry from `points_colors` when provided.
+    points_colors: Optional list of colors for each points list. If not
+               provided, defaults will be used.
         title: Window title
         canvas_size: (width, height) of the canvas
         margin: Margin around the drawing area
@@ -25,7 +36,7 @@ def present_segments(segment_lists: List[List[Tuple[Tuple[float, float], Tuple[f
         print("No segment lists provided")
         return
     
-    # Default colors if not provided
+    # Default colors if not provided (for segments)
     if colors is None:
         default_colors = ['red', 'blue', 'green', 'purple', 'orange', 'brown', 
                          'pink', 'gray', 'olive', 'cyan', 'magenta', 'yellow',
@@ -36,13 +47,29 @@ def present_segments(segment_lists: List[List[Tuple[Tuple[float, float], Tuple[f
         default_colors = ['red', 'blue', 'green', 'purple', 'orange', 'brown', 
                          'pink', 'gray', 'olive', 'cyan']
         colors.extend(default_colors[:(len(segment_lists) - len(colors))])
+
+    # Prepare points colors and default points_lists
+    if points_lists is None:
+        points_lists = []
+
+    if points_colors is None:
+        # Reuse the same palette but prefer black for points if possible
+        default_point_colors = ['black', 'red', 'blue', 'green', 'purple', 'orange']
+        points_colors = default_point_colors[:len(points_lists)]
+    elif len(points_colors) < len(points_lists):
+        default_point_colors = ['black', 'red', 'blue', 'green', 'purple', 'orange']
+        points_colors.extend(default_point_colors[:(len(points_lists) - len(points_colors))])
     
-    # Collect all points to determine bounds
+    # Collect all points to determine bounds (include segment endpoints and point lists)
     all_points = []
     for segment_list in segment_lists:
         for segment in segment_list:
             (x1, y1), (x2, y2) = segment
             all_points.extend([(x1, y1), (x2, y2)])
+
+    for pts in points_lists:
+        for (x, y) in pts:
+            all_points.append((x, y))
     
     if not all_points:
         print("No segments to display")
@@ -95,13 +122,20 @@ def present_segments(segment_lists: List[List[Tuple[Tuple[float, float], Tuple[f
             (x1, y1), (x2, y2) = segment
             canvas_x1, canvas_y1 = transform_point(x1, y1)
             canvas_x2, canvas_y2 = transform_point(x2, y2)
-            
+
             canvas.create_line(canvas_x1, canvas_y1, canvas_x2, canvas_y2,
-                             fill=color, width=line_width, capstyle=tk.ROUND)
+                               fill=color, width=line_width, capstyle=tk.ROUND)
             list_segment_count += 1
-        
+
         total_segments += list_segment_count
-        # print(f"List {i+1} ({color}): {list_segment_count} segments")
+
+    # Draw points (if any)
+    for i, pts in enumerate(points_lists):
+        pcolor = points_colors[i] if i < len(points_colors) else 'black'
+        for (x, y) in pts:
+            cx, cy = transform_point(x, y)
+            r = point_radius
+            canvas.create_oval(cx - r, cy - r, cx + r, cy + r, fill=pcolor, outline='')
     
     # Create legend and info frame
     info_frame = tk.Frame(root)
@@ -123,14 +157,27 @@ def present_segments(segment_lists: List[List[Tuple[Tuple[float, float], Tuple[f
         # Label
         count = len(segment_list)
         tk.Label(legend_item, text=f"List {i+1}: {count} segments").pack(side=tk.LEFT)
+
+    # Add points lists to legend (if any)
+    for i, pts in enumerate(points_lists):
+        legend_item = tk.Frame(legend_frame)
+        legend_item.pack(anchor='w')
+
+        color = points_colors[i] if i < len(points_colors) else 'black'
+        color_canvas = tk.Canvas(legend_item, width=20, height=10, bg=color)
+        color_canvas.pack(side=tk.LEFT, padx=(0, 5))
+        tk.Label(legend_item, text=f"Points {i+1}: {len(pts)} points").pack(side=tk.LEFT)
     
     # Statistics
     stats_frame = tk.Frame(info_frame)
     stats_frame.pack(side=tk.RIGHT, padx=20)
     
     tk.Label(stats_frame, text="Statistics:", font=("Arial", 12, "bold")).pack()
-    tk.Label(stats_frame, text=f"Total lists: {len(segment_lists)}").pack(anchor='w')
+    tk.Label(stats_frame, text=f"Total segment lists: {len(segment_lists)}").pack(anchor='w')
     tk.Label(stats_frame, text=f"Total segments: {total_segments}").pack(anchor='w')
+    total_points = sum(len(pts) for pts in points_lists)
+    tk.Label(stats_frame, text=f"Total points lists: {len(points_lists)}").pack(anchor='w')
+    tk.Label(stats_frame, text=f"Total points: {total_points}").pack(anchor='w')
     tk.Label(stats_frame, text=f"Bounds: ({min_x:.1f}, {min_y:.1f}) to ({max_x:.1f}, {max_y:.1f})").pack(anchor='w')
     
     # Close button
@@ -172,9 +219,13 @@ def test_segment_presentation():
         ((5.5, 0.5), (6, -3)),
     ]
     
-    all_segment_lists = [grid_segments, diagonal_segments,random_segments]
+    all_segment_lists = [grid_segments, diagonal_segments, random_segments]
 
-    present_segments(all_segment_lists)
+    # Sample point lists to display on the same canvas
+    points_a = [(0.5, 0.5), (1.5, 1.5), (2.5, 2.5)]
+    points_b = [(-3, 0), (0, -1), (4, 1)]
+
+    present_segments(all_segment_lists, points_lists=[points_a, points_b], points_colors=['black', 'magenta'])
     
 
 if __name__ == "__main__":

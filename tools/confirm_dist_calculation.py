@@ -33,7 +33,25 @@ def find_prob(min_dimention, num_of_values, max_length_between_vals):
     print(f"Length: {max_length_between_vals}. Prob: {sum(results)/len(results)}")
     return sum(results)/len(results)
 
-if __name__ == "__main__":
-    print(find_prob(1,2,0.25))
-    print(find_dist(10,8,10,0.9))
+def calculate_dist(width, height, num_of_values, prob=0.9):
+    # Area between two array is smaller than the area of the main diagonal.
+    # Area of main diagonal is the dist between rays * length of the diagonal
+    # Length of the diagonal = (width**2 + height**2)**0.5
+    # probability to get a point in this diagonal is the Area of the diagonal/total area
+    # The probability to get two points on the same diagonal is (n choose 2) * the last probability
+    # we want this probability to be lower than 1 - prob
 
+    # 1 - ((x * (width**2 + height**2)**0.5) / width*height ) * ((num_of_values * (num_of_values - 1)) / 2) = prob
+    # isolating x will give us:
+    # x = (1 - prob) * width * height / diagonal length * num of values choose 2
+    rectangle_area = width*height
+    n_choose_two = num_of_values * (num_of_values - 1) / 2
+    diagonal_length =  (width**2 + height**2)**0.5
+    dist_between_rays = ((1 - prob) * rectangle_area) / (diagonal_length * n_choose_two)
+    return dist_between_rays
+
+
+if __name__ == "__main__":
+    # print(find_prob(1,2,0.25))
+    # print(find_dist(10,8,10,0.99))
+    print(calculate_dist(10,8,10,0.99))

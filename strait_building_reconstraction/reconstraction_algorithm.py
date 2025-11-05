@@ -1,4 +1,4 @@
-from multiprocessing import Process
+from multiprocessing import Pool
 from strait_building import StraitBuilding
 from tools.confirm_dist_calculation import calculate_dist
 from tools.segment_presentation import present_segments
@@ -82,7 +82,7 @@ def find_direction(k_r1, k_r2, k_l1, k_l2):
 
 def find_segments(intersections_r: list, intersections_l: list, dist_between_rays):
     all_points = []
-    
+
     # find non corner points
     for p1 in intersections_r:
         for p2 in intersections_l:
@@ -136,19 +136,16 @@ def reconstract_building(building: StraitBuilding, present_results=False):
     left_rays3 = create_rays(building.width, building.height, dist_between_rays=dist_between_rays ,angle=math.pi / 2 + math.pi/6)
 
     # find the k-visibility for each angle
-    right_rays1_mesurements = get_angle_mesurements(right_rays1, building)
-    right_rays2_mesurements = get_angle_mesurements(right_rays2, building)
-    right_rays3_mesurements = get_angle_mesurements(right_rays3, building)
-    left_rays1_mesurements = get_angle_mesurements(left_rays1, building)
-    left_rays2_mesurements = get_angle_mesurements(left_rays2, building)
-    left_rays3_mesurements = get_angle_mesurements(left_rays3, building)
+    inputs = [(right_rays1, building), (right_rays2, building), (right_rays3, building), (left_rays1, building), (left_rays2, building), (left_rays3, building)]
+    with Pool(processes=6) as pool:
+        mesurements = pool.starmap(get_angle_mesurements, inputs)
     
-    right_key_rays1 = find_key_rays(right_rays1, right_rays1_mesurements)
-    right_key_rays2 = find_key_rays(right_rays2, right_rays2_mesurements)
-    right_key_rays3 = find_key_rays(right_rays3, right_rays3_mesurements)
-    left_key_rays1 = find_key_rays(left_rays1, left_rays1_mesurements)
-    left_key_rays2 = find_key_rays(left_rays2, left_rays2_mesurements)
-    left_key_rays3 = find_key_rays(left_rays3, left_rays3_mesurements)
+    right_key_rays1 = find_key_rays(right_rays1, mesurements[0])
+    right_key_rays2 = find_key_rays(right_rays2, mesurements[1])
+    right_key_rays3 = find_key_rays(right_rays3, mesurements[2])
+    left_key_rays1 = find_key_rays(left_rays1, mesurements[3])
+    left_key_rays2 = find_key_rays(left_rays2, mesurements[4])
+    left_key_rays3 = find_key_rays(left_rays3, mesurements[5])
 
     assert(len(right_key_rays1) == len(right_key_rays2)
            and len(right_key_rays2) == len(right_key_rays3)

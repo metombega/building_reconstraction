@@ -11,10 +11,17 @@ def present_segments(
     margin: int = 50,
     line_width: int = 2,
     point_radius: int = 4,
+    side_by_side: bool = False,
+    same_scale: bool = True,
 ) -> None:
     """
     Present multiple lists of segments on screen using Tkinter, each list in a different color.
     Optionally present one or more lists of points on the same display.
+    If `side_by_side` is True and exactly two segment lists are provided, the
+    function will render them in two canvases placed side-by-side. When
+    `same_scale` is True (default) both canvases will use the same coordinate
+    transform so visual comparison is easier. If `same_scale` is False each
+    side is scaled independently to its contents.
     
     Args:
     segment_lists: List of lists, where each inner list contains segments.
@@ -110,24 +117,156 @@ def present_segments(
     root.title(title)
     root.geometry(f"{canvas_size[0]}x{canvas_size[1] + 100}")
     
-    # Create canvas
-    canvas = tk.Canvas(root, width=canvas_size[0], height=canvas_size[1], bg='white')
-    canvas.pack(pady=10)
-    
-    # Draw segments
     total_segments = 0
-    for i, (segment_list, color) in enumerate(zip(segment_lists, colors)):
-        list_segment_count = 0
-        for segment in segment_list:
-            (x1, y1), (x2, y2) = segment
-            canvas_x1, canvas_y1 = transform_point(x1, y1)
-            canvas_x2, canvas_y2 = transform_point(x2, y2)
+    # If side_by_side and exactly 2 lists provided, create two canvases
+    if side_by_side and len(segment_lists) == 2:
+        left_segments = segment_lists[0]
+        right_segments = segment_lists[1]
 
-            canvas.create_line(canvas_x1, canvas_y1, canvas_x2, canvas_y2,
-                               fill=color, width=line_width, capstyle=tk.ROUND)
-            list_segment_count += 1
+        # Prepare points lists per side (if provided). Expect points_lists to be
+        # either None or a list of two lists when side_by_side=True. Fall back to
+        # empty lists when missing.
+        if points_lists and len(points_lists) >= 2:
+            left_points = points_lists[0]
+            right_points = points_lists[1]
+        else:
+            left_points = []
+            right_points = []
 
-        total_segments += list_segment_count
+        # Determine bounds. If same_scale is True, use combined bounds so both
+        # canvases align. Otherwise compute per-side bounds.
+        if same_scale:
+            combined_points = []
+            for s in (left_segments, right_segments):
+                for seg in s:
+                    (x1, y1), (x2, y2) = seg
+                    combined_points.extend([(x1, y1), (x2, y2)])
+            for (x, y) in left_points + right_points:
+                combined_points.append((x, y))
+
+            if combined_points:
+                min_x = min(p[0] for p in combined_points)
+                max_x = max(p[0] for p in combined_points)
+                min_y = min(p[1] for p in combined_points)
+                max_y = max(p[1] for p in combined_points)
+            else:
+                print("No segments to display")
+                return
+
+            padding = max(max_x - min_x, max_y - min_y) * 0.1
+            min_x -= padding
+            max_x += padding
+            min_y -= padding
+            max_y += padding
+
+            data_width = max_x - min_x
+            data_height = max_y - min_y
+
+            # Each canvas gets half the width
+            canvas_w = canvas_size[0] // 2
+            draw_width = canvas_w - 2 * margin
+            draw_height = canvas_size[1] - 2 * margin
+            scale_x = draw_width / data_width if data_width > 0 else 1
+            scale_y = draw_height / data_height if data_height > 0 else 1
+            scale = min(scale_x, scale_y)
+
+            def make_transform_for_canvas(canvas_w_local):
+                def _t(x, y):
+                    cx = margin + (x - min_x) * scale
+                    cy = canvas_size[1] - margin - (y - min_y) * scale
+                    return cx, cy
+                return _t
+
+            transform_left = make_transform_for_canvas(canvas_w)
+            transform_right = make_transform_for_canvas(canvas_w)
+
+        else:
+            # independent scales: compute bounds per side and create transforms
+            def compute_bounds_and_transform(segments, pts):
+                pts_all = []
+                for seg in segments:
+                    (x1, y1), (x2, y2) = seg
+                    pts_all.extend([(x1, y1), (x2, y2)])
+                for (x, y) in pts:
+                    pts_all.append((x, y))
+                if not pts_all:
+                    return None
+                minx = min(p[0] for p in pts_all)
+                maxx = max(p[0] for p in pts_all)
+                miny = min(p[1] for p in pts_all)
+                maxy = max(p[1] for p in pts_all)
+                padding = max(maxx - minx, maxy - miny) * 0.1
+                minx -= padding; maxx += padding; miny -= padding; maxy += padding
+
+                data_w = maxx - minx; data_h = maxy - miny
+                canvas_w = canvas_size[0] // 2
+                draw_w = canvas_w - 2 * margin
+                draw_h = canvas_size[1] - 2 * margin
+                sx = draw_w / data_w if data_w > 0 else 1
+                sy = draw_h / data_h if data_h > 0 else 1
+                s = min(sx, sy)
+
+                def _t(x, y):
+                    cx = margin + (x - minx) * s
+                    cy = canvas_size[1] - margin - (y - miny) * s
+                    return cx, cy
+
+                return _t
+
+            transform_left = compute_bounds_and_transform(left_segments, left_points) or (lambda x, y: (x, y))
+            transform_right = compute_bounds_and_transform(right_segments, right_points) or (lambda x, y: (x, y))
+
+        # Create two canvases side by side
+        frame = tk.Frame(root)
+        frame.pack(pady=10)
+
+        canvas_left = tk.Canvas(frame, width=canvas_size[0] // 2, height=canvas_size[1], bg='white')
+        canvas_left.pack(side=tk.LEFT)
+        canvas_right = tk.Canvas(frame, width=canvas_size[0] // 2, height=canvas_size[1], bg='white')
+        canvas_right.pack(side=tk.RIGHT)
+
+        # Draw left
+        for seg in left_segments:
+            (x1, y1), (x2, y2) = seg
+            cx1, cy1 = transform_left(x1, y1)
+            cx2, cy2 = transform_left(x2, y2)
+            canvas_left.create_line(cx1, cy1, cx2, cy2, fill=colors[0] if colors else 'red', width=line_width, capstyle=tk.ROUND)
+            total_segments += 1
+
+        # Draw right
+        for seg in right_segments:
+            (x1, y1), (x2, y2) = seg
+            cx1, cy1 = transform_right(x1, y1)
+            cx2, cy2 = transform_right(x2, y2)
+            canvas_right.create_line(cx1, cy1, cx2, cy2, fill=colors[1] if colors and len(colors) > 1 else 'blue', width=line_width, capstyle=tk.ROUND)
+            total_segments += 1
+
+        # Draw points per side
+        for (pts, canv, pcolors) in ((left_points, canvas_left, points_colors[0] if points_colors else 'black'), (right_points, canvas_right, points_colors[1] if points_colors and len(points_colors) > 1 else 'black')):
+            pcolor = pcolors
+            for (x, y) in pts:
+                cx, cy = (transform_left if canv is canvas_left else transform_right)(x, y)
+                r = point_radius
+                canv.create_oval(cx - r, cy - r, cx + r, cy + r, fill=pcolor, outline='')
+
+    else:
+        # Single canvas mode (original behavior)
+        canvas = tk.Canvas(root, width=canvas_size[0], height=canvas_size[1], bg='white')
+        canvas.pack(pady=10)
+
+        # Draw segments
+        for i, (segment_list, color) in enumerate(zip(segment_lists, colors)):
+            list_segment_count = 0
+            for segment in segment_list:
+                (x1, y1), (x2, y2) = segment
+                canvas_x1, canvas_y1 = transform_point(x1, y1)
+                canvas_x2, canvas_y2 = transform_point(x2, y2)
+
+                canvas.create_line(canvas_x1, canvas_y1, canvas_x2, canvas_y2,
+                                   fill=color, width=line_width, capstyle=tk.ROUND)
+                list_segment_count += 1
+
+            total_segments += list_segment_count
 
     # Draw points (if any)
     for i, pts in enumerate(points_lists):

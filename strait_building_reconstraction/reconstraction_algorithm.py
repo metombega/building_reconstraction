@@ -147,21 +147,26 @@ def reconstract_building(building: StraitBuilding, present_results=False):
     left_key_rays2 = find_key_rays(left_rays2, mesurements[4])
     left_key_rays3 = find_key_rays(left_rays3, mesurements[5])
 
-    assert(len(right_key_rays1) == len(right_key_rays2)
-           and len(right_key_rays2) == len(right_key_rays3)
-           and len(left_key_rays1) == len(left_key_rays2)
-           and len(left_key_rays2) == len(left_key_rays3))
+    # assert(len(right_key_rays1) == len(right_key_rays2)
+    #        and len(right_key_rays2) == len(right_key_rays3)
+    #        and len(left_key_rays1) == len(left_key_rays2)
+    #        and len(left_key_rays2) == len(left_key_rays3))
     intersections_r = find_triple_intersections(right_key_rays1, right_key_rays2, right_key_rays3, building.width, building.height)
     intersections_l = find_triple_intersections(left_key_rays1, left_key_rays2, left_key_rays3, building.width, building.height)
     segments = find_segments(intersections_r, intersections_l, dist_between_rays)
     if present_results:
-        present_segments([building.segments])
-        present_segments([segments])
+        present_segments([building.segments, segments], side_by_side=True, same_scale=False)
+        # present_segments([segments])
 
     return segments
 
 if __name__ == '__main__':
 
+    # import json
+    # with open("data.json", "r") as f:
+    #     data = json.load(f)
+    # building = StraitBuilding(8, 10, 1, data)
+    # reconstracted_building = reconstract_building(building, True)
     for _ in range(3):
         building = StraitBuilding(8, 10)
         building.create_random_building(14)

@@ -130,10 +130,10 @@ def combine_close_points(point_list, dist):
             p1 = Point(point_list[i])
             p2 = Point(point_list[j])
             if p1.distance(p2) < dist:
-                to_add.append(((p1.x+p2.x)/2, (p1.y+p2.y)/2))
-                to_remove.append((p1.x,p1.y))
+                # to_add.append(((p1.x+p2.x)/2, (p1.y+p2.y)/2))
+                # to_remove.append((p1.x,p1.y))
                 to_remove.append((p2.x,p2.y))
-    point_list = point_list + to_add
+    point_list = point_list
     point_list = [p for p in point_list if p not in to_remove]
     return point_list
 

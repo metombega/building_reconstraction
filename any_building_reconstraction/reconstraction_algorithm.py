@@ -3,7 +3,7 @@ from any_building import AnyBuilding
 from tools.confirm_dist_calculation import calculate_dist
 from tools.segment_presentation import present_segments
 from tools.k_visibility import count_crossings
-from tools.geometric import center_of_three_parallel_pairs
+from tools.geometric import center_of_three_parallel_pairs, combine_close_points
 from shapely.geometry import Point, LineString
 from tqdm import tqdm
 import math
@@ -56,84 +56,70 @@ def find_triple_intersections(rays1, rays2, rays3, width, height):
     return points
 
 
-def find_direction(k_r1, k_r2, k_l1, k_l2):
-    ans = {'up': False, 'down': False, 'left': False, 'right': False}
-    if k_r1 == k_r2 + 2:
-        ans['up'] = True
-        ans['left'] = True
-    elif k_r1 == k_r2 - 2:
-        ans['down'] = True
-        ans['right'] = True
-    elif k_l1 == k_l2 + 2:
-        ans['down'] = True
-        ans['left'] = True
-    elif k_l1 == k_l2 - 2:
-        ans['up'] = True
-        ans['right'] = True
-    elif k_r1 == k_r2 + 1 and k_l1 == k_l2 + 1:
-        ans['left'] = True
-    elif k_r1 == k_r2 - 1 and k_l1 == k_l2 + 1:
-        ans['down'] = True
-    elif k_r1 == k_r2 + 1 and k_l1 == k_l2 - 1:
-        ans['up'] = True
-    elif k_r1 == k_r2 - 1 and k_l1 == k_l2 - 1:
-        ans['right'] = True
+def find_external_rays(p1,p2,dist_between_rays,width,height):
+    m = (p2[1] - p1[1]) / (p2[0] - p1[0])
+    y0 = p1[1] - m*p1[0]
+    
+    if m > 1 or m < -1:
+        x1 = -y0 / m
+        y1 = 0
+        x2 = (height - y0) / m
+        y2 = height
+        ray1 = [(x1 - dist_between_rays, y1), (x2 - dist_between_rays, y2)]
+        ray2 = [(x1 + dist_between_rays, y1), (x2 + dist_between_rays, y2)]
+        
     else:
-        print('illigal point')
-    return ans
+        x1 = 0
+        y1 = y0
+        x2 = width
+        y2 = y0 + m * width
+        ray1 = [(x1, y1 - dist_between_rays), (x2, y2 - dist_between_rays)]
+        ray2 = [(x1, y1 + dist_between_rays), (x2, y2 + dist_between_rays)]
+    return ray1, ray2
 
+def find_internal_rays(p1, p2, exray1, exray2, width, height):
+    m = (p2[1] - p1[1]) / (p2[0] - p1[0])
+    mid_point = ((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
+    if m > 1 or m < -1:
+        if mid_point[1] > height / 2:
+            t = height / mid_point[1]
+            ray1 = [(exray1[0][0], 0), (exray1[0][0] + t * (mid_point[0] - exray1[0][0]), height)] 
+            ray2 = [(exray2[0][0], 0), (exray2[0][0] + t * (mid_point[0] - exray2[0][0]), height)]
+        else:
+            t = height / mid_point[1]
+            ray1 = [(exray1[1][0], height), ((exray1[1][0] - t * mid_point[0]) / (1 - t), 0)] 
+            ray2 = [(exray2[1][0], height), ((exray2[1][0] - t * mid_point[0]) / (1 - t), 0)]
+    else:
+        if mid_point[0] > width / 2:
+            t = width / mid_point[0]
+            ray1 = [(0, exray1[0][1]), (width, exray1[0][1] + t * (mid_point[1] - exray1[0][1]))] 
+            ray2 = [(0, exray2[0][1]), (width, exray2[0][1] + t * (mid_point[1] - exray2[0][1]))]
+        else:
+            t = width / mid_point[0]
+            ray1 = [(width, exray1[1][1]), (0, (exray1[1][1] - t * mid_point[1]) / (1 - t))] 
+            ray2 = [(width, exray2[1][1]), (0, (exray2[1][1] - t * mid_point[1]) / (1 - t))]
+    return ray1, ray2
 
-def find_segments(intersections_r: list, intersections_l: list, dist_between_rays):
-    all_points = []
-
-    # find non corner points
-    for p1 in intersections_r:
-        for p2 in intersections_l:
-            point1 = Point(p1['point'])
-            point2 = Point(p2['point'])
-            if point1.distance(point2) < 4*dist_between_rays:
-                new_point = ((point1.x+point2.x)/2, (point1.y+point2.y)/2)
-                direction = find_direction(p1['mesure'][0][0], p1['mesure'][0][1], p2['mesure'][0][0], p2['mesure'][0][1])
-                all_points.append({'point': new_point, 'direction': direction})
-                p1['found'] = True
-                p2['found'] = True
-                break
-
-    # find corner points
-    for p in intersections_r:
-        if 'found' not in p.keys():
-            direction = find_direction(p['mesure'][0][0], p['mesure'][0][1], 0, 0)
-            all_points.append({'point': p['point'], 'direction': direction})
-    for p in intersections_l:
-        if 'found' not in p.keys():
-            direction = find_direction(0, 0, p['mesure'][0][0], p['mesure'][0][1])
-            all_points.append({'point': p['point'], 'direction': direction})
-
-    # find segments using directions
-    segments = []
-    for i in range(len(all_points) - 1):
-        for j in range(i+1, len(all_points)):
-            if abs(all_points[i]['point'][0] - all_points[j]['point'][0]) < 4*dist_between_rays:
-                if (all_points[i]['direction']['up'] and all_points[j]['direction']['down']
-                    or all_points[i]['direction']['down'] and all_points[j]['direction']['up']):
-                    segments.append([all_points[i]['point'], all_points[j]['point']])
-            elif abs(all_points[i]['point'][1] - all_points[j]['point'][1]) < 4*dist_between_rays:
-                if (all_points[i]['direction']['left'] and all_points[j]['direction']['right']
-                    or all_points[i]['direction']['right'] and all_points[j]['direction']['left']):
-                    segments.append([all_points[i]['point'], all_points[j]['point']])
-
-    return segments
+def is_segment_there(p1, p2, dist_between_rays, building):
+    exray1, exray2 = find_external_rays(p1, p2, dist_between_rays, building.width, building.height)
+    inray1, inray2 = find_internal_rays(p1, p2, exray1, exray2, building.width, building.height)
+    mesurements = get_angle_mesurements([exray1, exray2, inray1, inray2], building)
+    if mesurements[0] + mesurements[1] + 2 == mesurements[2] + mesurements[3]:
+        return True
+    else:
+        return False
+    
 
 def reconstract_building(building: AnyBuilding, present_results=False):
     # we assume one wall every 4 meters 
     estimated_num_of_walls = int(building.width * building.height / 9)
     # this will return the distance between each ray we want to mesure
     dist_between_rays = calculate_dist(building.width, building.height, estimated_num_of_walls, 0.99)
-
+    print(dist_between_rays)
     num_of_angles = 9
     all_rays = []
     for i in range(num_of_angles):
-        angle = i * (math.pi / 2) / num_of_angles
+        angle = i * math.pi / num_of_angles
         angle_rays = create_rays(building.width, building.height, dist_between_rays=dist_between_rays ,angle=angle)
         all_rays.append(angle_rays)
     
@@ -149,15 +135,21 @@ def reconstract_building(building: AnyBuilding, present_results=False):
         key_rays.append(find_key_rays(all_rays[i], mesurements[i]))
 
     intersections = []
-    for i in range(len(key_rays)-2):
-        angle_intersections = find_triple_intersections(key_rays[i], key_rays[i+1], key_rays[i+2], building.width, building.height)
+    all_intersections = []
+    n = len(key_rays)
+    for i in range(n):
+        angle_intersections = find_triple_intersections(key_rays[(i) % n], key_rays[(i+1) % n], key_rays[(i+2) % n], building.width, building.height)
         intersections.append([a['point'] for a in angle_intersections])
-    
-    
-    
-    # segments = find_segments(intersections, dist_between_rays)
+        all_intersections.extend([a['point'] for a in angle_intersections])
+    all_intersections = combine_close_points(all_intersections, dist_between_rays*4)
+    segments = []
+    for i in range(len(all_intersections) - 1):
+        for j in range(i+1, len(all_intersections)):
+            if is_segment_there(all_intersections[i], all_intersections[j], dist_between_rays, building):
+                segments.append([all_intersections[i],all_intersections[j]])
+            
     if present_results:
-        present_segments([building.segments], points_lists=intersections)
+        present_segments([building.segments, segments], side_by_side=True, same_scale=False)
 
     return None
 
@@ -168,9 +160,19 @@ if __name__ == '__main__':
     #     data = json.load(f)
     # building = StraitBuilding(8, 10, 1, data)
     # reconstracted_building = reconstract_building(building, True)
-    for _ in range(3):
+    for _ in range(1):
         building = AnyBuilding(8, 10)
-        building.create_random_building(14)
+        building.create_random_building(12)
+    #     building.segments = [
+    #     ((0, 0), (8, 0)),
+    #     ((8, 0), (8, 10)),
+    #     ((8, 10), (0, 10)),
+    #     ((0, 10), (0, 0)),
+    #     ((5.778027418280737, 3.6221263865376265), (3.0294874811259414, 1.567961185216555)),
+    #     ((0.34063599801817634, 8.512395982072805), (3.0294874811259414, 1.567961185216555)),
+    #     ((6.945695347938577, 3.6434546120961544), (5.830982134140663, 3.696774243762092)),
+    #     ((5.377475144342135, 3.462178330389297), (0.34063599801817634, 8.512395982072805)), # inray
+    # ]
         
         reconstracted_building = reconstract_building(building, True)
 
